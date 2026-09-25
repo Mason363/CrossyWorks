@@ -1,15 +1,16 @@
-# Builds the app and publishes it as a GitHub release when a v* tag is pushed.
-name: Release
+# Builds the app on every push. When VERSION names a version that has no
+# release yet, publishes crossyroad.nwa as a GitHub release (tag v<VERSION>).
+name: Build and release
 
 on:
   push:
-    tags: ["v*"]
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  release:
+  build:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -17,10 +18,19 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y gcc-arm-none-eabi
       - name: Build
         run: make && sha256sum output/crossyroad.nwa
-      - name: Publish
+      - uses: actions/upload-artifact@v4
+        with:
+          name: crossyroad
+          path: output/crossyroad.nwa
+      - name: Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >
-          gh release create "$GITHUB_REF_NAME" output/crossyroad.nwa
-          --title "Crossy Road $GITHUB_REF_NAME"
-          --notes "Crossy Road for the NumWorks calculator. Download crossyroad.nwa below and install it from https://my.numworks.com/apps with your calculator plugged in."
+        run: |
+          tag="v$(cat VERSION)"
+          if gh release view "$tag" > /dev/null 2>&1; then
+            echo "$tag is already released"
+            exit 0
+          fi
+          gh release create "$tag" output/crossyroad.nwa --target "$GITHUB_SHA" \
+            --title "Crossy Road $tag" \
+            --notes "Crossy Road for the NumWorks calculator. Download crossyroad.nwa below and install it from https://my.numworks.com/apps with your calculator plugged in."
