@@ -633,8 +633,8 @@ static float clampf(float v, float a, float b) { return v < a ? a : v > b ? b : 
 
 #define PLAY_MIN (-4)
 #define PLAY_MAX 4
-#define NCOLS 23  // columns -11..11 (the rest of each lane is shaded scenery)
-#define COL0 11
+#define NCOLS 27  // columns -13..13 (the rest of each lane is shaded scenery)
+#define COL0 13
 #define NLANES 40
 #define MAXOBJ 8
 #define NO_COIN (-128)
@@ -741,7 +741,7 @@ static void new_set(int row) {
 
 // Evenly spaced moving objects on a looping lane.
 static void place_movers(Lane *L, float spacing) {
-  int n = (int)(26.0f / spacing) + 1;
+  int n = (int)(30.0f / spacing) + 1;
   if (n > MAXOBJ) n = MAXOBJ;
   L->period = n * spacing;
   L->nobj = n;
@@ -798,13 +798,14 @@ static void gen_lane(void) {
     case L_ROAD: {
       dir = prev_dir ? -prev_dir : (irand(2) ? 1 : -1);
       int kind = irand(8);
-      float len = is_truck(kind) ? 2 * TRUCK_HALF : 2 * CAR_HALF;
+      float len = is_truck(kind) ? 2 * TRUCK_HALF : 2 * CAR_HALF, span = 30 + len;
       float boost = 1.0f + (row > 300 ? 300 : row) / 600.0f;
       L->speed = frand(2.0f, 3.33f) * boost;
       float gap = (float)(2 + irand(12));
-      int n = (int)((26 + len) / (gap + len));
+      int n = (int)(span / (gap + len));
       if (n < 1) n = 1;
-      place_movers(L, (26 + len) / n);
+      if (n > MAXOBJ) n = MAXOBJ;
+      place_movers(L, span / n);
       for (int i = 0; i < L->nobj; i++) L->obj[i].kind = (uint8_t)kind;
       if (irand(100) < 5) L->coin = (int8_t)(PLAY_MIN + irand(9));
       reach_prev = ALLPLAY;
@@ -1471,7 +1472,7 @@ static void set_camera(void) {
 
 static void draw_world(void) {
   set_camera();
-  int top = (int)cam_z + 12, bot = (int)cam_z - 5;
+  int top = (int)cam_z + 12, bot = (int)cam_z - 7;
   for (int row = top; row >= bot; row--) {
     draw_ground(row);
     draw_lane_objects(row);
