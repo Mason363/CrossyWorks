@@ -17,6 +17,7 @@ static void dump(void) {
 }
 
 int main(void) {
+  memcpy(&G.rom, &rom_init, sizeof(rom_init));  // as crossy_main does first
   void *fs = dlsym(RTLD_DEFAULT, "_ZN3Ion7Storage10FileSystem16sharedFileSystemE");
   count_fn nrec = (count_fn)dlsym(RTLD_DEFAULT, "_ZNK3Ion7Storage10FileSystem15numberOfRecordsEv");
   size_fn avail = (size_fn)dlsym(RTLD_DEFAULT, "_ZNK3Ion7Storage10FileSystem13availableSizeEv");

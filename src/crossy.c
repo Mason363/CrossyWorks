@@ -32,9 +32,11 @@ const uint32_t eadk_api_level __attribute__((section(".rodata.eadk_api_level")))
 #define SW 320
 #define SH 240
 
+// Helpers used from many places are kept out of line: smaller code.
+#define NOINLINE __attribute__((noinline))
+
 // ---------------------------------------------------------------------------
-// Palette. Colors sampled from the original game (lit top faces, ambient-only
-// side faces, and shadowed ground).
+// Palette indices (the colors are in the constant data below).
 
 #define RGB(r, g, b) ((((r) & 0xF8) << 8) | (((g) & 0xFC) << 3) | ((b) >> 3))
 
@@ -64,66 +66,422 @@ enum {
   NCOLORS
 };
 
-static const uint16_t base_pal[NCOLORS] = {
-  [C_GRASS] = RGB(217, 252, 130), [C_GRASS2] = RGB(208, 244, 120),
-  [C_GRASS_O] = RGB(192, 235, 110), [C_GRASS2_O] = RGB(184, 227, 102),
-  [C_GRASS_SH] = RGB(96, 116, 54), [C_GRASS_OSH] = RGB(84, 102, 43),
-  [C_ROAD] = RGB(97, 104, 108), [C_ROAD_O] = RGB(89, 96, 100),
-  [C_ROAD_SH] = RGB(40, 42, 42), [C_ROAD_OSH] = RGB(36, 38, 38),
-  [C_ROAD_SIDE] = RGB(61, 64, 64), [C_DASH] = RGB(141, 151, 155), [C_DASH_O] = RGB(129, 141, 144),
-  [C_WATER] = RGB(170, 252, 254), [C_WATER_O] = RGB(144, 236, 252),
-  [C_WATER_SH] = RGB(75, 116, 131), [C_WATER_OSH] = RGB(64, 104, 122), [C_FOAM] = RGB(255, 255, 255),
-  [C_RAIL] = RGB(170, 167, 183), [C_RAIL_S] = RGB(74, 71, 76),
-  [C_TIE] = RGB(127, 85, 79), [C_TIE_S] = RGB(54, 33, 29),
-  [C_RAIL_SH] = RGB(74, 71, 76), [C_TIE_SH] = RGB(54, 33, 29),
-  [C_WHITE] = RGB(255, 255, 255), [C_GRAY] = RGB(144, 144, 144),
-  [C_COMB] = RGB(239, 130, 131), [C_COMB_S] = RGB(117, 55, 53),
-  [C_BEAK] = RGB(240, 146, 107), [C_BEAK_S] = RGB(120, 63, 43), [C_EYE] = RGB(31, 17, 13),
-  [C_LEAF] = RGB(208, 234, 90), [C_LEAF_A] = RGB(100, 112, 39), [C_LEAF_B] = RGB(91, 101, 33),
-  [C_TRUNK] = RGB(64, 41, 35), [C_TRUNK_E] = RGB(58, 32, 27),
-  [C_ROCK] = RGB(252, 239, 254), [C_ROCK_S] = RGB(111, 103, 108),
-  [C_LOG] = RGB(150, 102, 92), [C_LOG_BARK] = RGB(135, 85, 76), [C_LOG_S] = RGB(64, 41, 35),
-  [C_LOG_END] = RGB(96, 62, 55), [C_LOG_SH] = RGB(66, 45, 40),
-  [C_LILY] = RGB(115, 229, 135), [C_LILY_S] = RGB(46, 99, 55),
-  [C_BLACK] = RGB(0, 0, 0), [C_CABIN_S] = RGB(135, 142, 144), [C_UNDER] = RGB(71, 66, 80),
-  [C_HUB] = RGB(160, 166, 170),
-  [C_BLUE_T] = RGB(120, 248, 253), [C_BLUE_S] = RGB(48, 107, 116), [C_BLUE_S2] = RGB(31, 78, 95),
-  [C_GREEN_T] = RGB(196, 244, 124), [C_GREEN_S] = RGB(95, 114, 56), [C_GREEN_S2] = RGB(77, 102, 48),
-  [C_YELLOW_T] = RGB(255, 254, 129), [C_YELLOW_S] = RGB(138, 123, 56), [C_YELLOW_S2] = RGB(118, 104, 48),
-  [C_ORANGE_T] = RGB(255, 140, 84), [C_ORANGE_S] = RGB(140, 54, 34), [C_ORANGE_S2] = RGB(114, 42, 28),
-  [C_PURPLE_T] = RGB(182, 160, 255), [C_PURPLE_S] = RGB(82, 64, 142), [C_PURPLE_S2] = RGB(66, 50, 118),
-  [C_RED_T] = RGB(250, 92, 100), [C_RED_S] = RGB(120, 30, 38),
-  [C_TBLUE_T] = RGB(64, 184, 248), [C_TBLUE_S] = RGB(8, 82, 124),
-  [C_TGREEN_T] = RGB(110, 214, 198), [C_TGREEN_S] = RGB(36, 98, 90),
-  [C_BOX_T] = RGB(236, 236, 240), [C_BOX_S] = RGB(128, 130, 138), [C_BOX_S2] = RGB(112, 114, 122),
-  [C_TRAIN_T] = RGB(96, 200, 252), [C_TRAIN_S] = RGB(22, 116, 176), [C_TRAIN_S2] = RGB(14, 88, 142),
-  [C_TRAIN_W] = RGB(200, 236, 236), [C_TRAIN_WS] = RGB(88, 118, 124),
-  [C_TRAIN_Y] = RGB(252, 252, 131), [C_TRAIN_YS] = RGB(128, 124, 52),
-  [C_POLE_R] = RGB(196, 60, 72), [C_POLE_RS] = RGB(89, 33, 31),
-  [C_POLE_W] = RGB(238, 238, 238), [C_POLE_WS] = RGB(144, 144, 144),
-  [C_LAMP_OFF] = RGB(62, 19, 24), [C_LAMP_ON] = RGB(255, 36, 36),
-  [C_SIGNAL] = RGB(36, 36, 40), [C_SIGNAL_S] = RGB(14, 14, 16),
-  [C_COIN] = RGB(255, 238, 70), [C_COIN_S] = RGB(176, 132, 16), [C_COIN_C] = RGB(255, 36, 16),
-  [C_EAGLE] = RGB(136, 72, 64), [C_EAGLE_S] = RGB(74, 36, 34),
-  [C_EAGLE_H] = RGB(250, 250, 250), [C_EAGLE_HS] = RGB(150, 150, 150),
-  [C_EAGLE_B] = RGB(255, 170, 60), [C_EAGLE_BS] = RGB(140, 80, 24),
-  [C_BTN] = RGB(86, 196, 248), [C_BTN_S] = RGB(36, 150, 220), [C_GOLD] = RGB(248, 232, 77),
-  [C_OUTLINE] = RGB(0, 0, 0),
+// ---------------------------------------------------------------------------
+// Materials: colors of the top, south and east faces of a box.
+
+typedef struct { uint8_t t, s, e; } Mat;  // top, south, east colors
+
+enum {
+  M_WHITE, M_COMB, M_BEAK, M_EYE, M_TRUNK, M_ROCK, M_LOG, M_LOG_BARK, M_LILY,
+  M_BLACK, M_CABIN, M_UNDER, M_HUB,
+  M_BLUE, M_BLUE2, M_GREEN, M_GREEN2, M_YELLOW, M_YELLOW2, M_ORANGE, M_ORANGE2, M_PURPLE, M_PURPLE2,
+  M_RED, M_TBLUE, M_TGREEN, M_BOX, M_BOX2,
+  M_TRAIN, M_TRAIN2, M_TRAIN_W, M_TRAIN_Y,
+  M_POLE_R, M_POLE_W, M_SIGNAL, M_LAMP_OFF, M_LAMP_ON,
+  M_EAGLE, M_EAGLE_H, M_EAGLE_B,
+  NMATS
 };
 
-static uint16_t pal[NCOLORS];
-static uint8_t shade[NCOLORS];
-static uint8_t fb[SW * SH] __attribute__((aligned(4)));
+// ---------------------------------------------------------------------------
+// Game state. Everything lives in one block so code reaches it from a single
+// base address (member order tuned for code size: hot fields get short offsets).
+
+typedef struct { int8_t x, y, z; uint8_t w, h, d, m; } Box;  // 1/40 tile units
+
+typedef struct { uint16_t off; uint8_t n; uint8_t reach; } Mdl;  // sorted box list
+enum {
+  MD_CHICKEN,                   // 4 facings
+  MD_CAR = MD_CHICKEN + 4,      // 5 colors x 2 directions
+  MD_TRUCK = MD_CAR + 10,       // 3 colors x 2 directions
+  MD_ENGINE = MD_TRUCK + 6,     // 2 directions
+  MD_WAGON = MD_ENGINE + 2,
+  MD_LOG = MD_WAGON + 1,        // 2..4 tiles
+  MD_LILY = MD_LOG + 3,
+  MD_ROCK,
+  MD_SIGNAL,                    // lamps off, left on, right on
+  MD_EAGLE = MD_SIGNAL + 3,
+  NMODELS
+};
+
+#define PLAY_MIN (-4)
+#define PLAY_MAX 4
+#define NCOLS 27  // columns -13..13 (the rest of each lane is shaded scenery)
+#define COL0 13
+#define NLANES 40
+#define MAXOBJ 8
+#define NO_COIN (-128)
+#define NPARTS 40
+#define STRIP 12
+
+typedef struct {
+  float x;       // center
+  uint8_t kind;  // vehicle type (road) or length in tiles (river)
+  int8_t coin;   // slot holding a coin (logs), -1 if none
+} Obj;
+
+typedef struct {
+  int row;
+  uint8_t type, nobj, alt, train;
+  int8_t dir, coin, bob;
+  float speed, period, timer, trainx, bobt;
+  uint8_t cells[NCOLS];
+  Obj obj[MAXOBJ];
+} Lane;
+
+typedef struct { float x, y, z, vx, vy, vz, life; uint8_t c, sz; } Part;
+
+enum { L_GRASS, L_ROAD, L_RIVER, L_LILY, L_RAIL };
+
+// Constant tables (see "Constant data" below); a copy lives in the state block.
+struct Rom {
+  uint16_t pal[NCOLORS];      // RGB565 of each color
+  uint8_t shade_pairs[16][2]; // color, its shadowed version
+  Mat mats[NMATS];
+  Box shapes[101];
+  uint8_t shape_at[13];
+  uint8_t model_def[NMODELS][4];
+  uint8_t obstacle_pct[12];
+  uint8_t kinds[4];
+  int8_t dx[4], dz[4];
+  char font_chars[23];
+  uint8_t font_w[22];
+  uint16_t font[22][10];
+  uint16_t hand_ol[14], hand_in[14];
+  char save_name[15];
+  uint32_t slots[2];
+  char s_crossy[7], s_road[5], s_new_top[8];
+};
+
+struct State {
+  uint16_t reach_prev;      // bits 0..8: playable columns reachable in the previous lane
+  float ox, oy;             // screen position of the world origin (whole pixels)
+  float lxa, lxb;           // visible x range of the lane being drawn
+  float cam_x, cam_z, shake;
+  float st_time, game_time, fade, restart_t;
+  float eagle_x, eagle_y, eagle_z;
+  int state, paused, show_logo, new_top, restarting, eagle_on;
+  int score, top_score, coins;
+  int gen_next, set_left, set_type, prev_dir, start_end;
+  uint32_t rng_s;
+  uint8_t *fs_buf;
+  uint32_t fs_size;
+  struct {
+    float x, y, z, base;    // position; base = standing height of the surface
+    int face, row, best;
+    int hop;
+    float t, fx, fz, fbase, tx, tz;
+    int q[3], nq;
+    float sx, sy, sz;       // squash / death scale
+    float logoff;
+    int dead, visible;
+    int log;                // index of the log ridden in the current row, or -1
+    float dt, idle;
+    int crow, cobj;         // vehicle carrying the splatted chicken
+    float cdx;
+  } P;
+  uint16_t fpal[NCOLORS];
+  uint8_t shade[NCOLORS];
+  Mdl models[NMODELS];
+  Part parts[NPARTS];
+  struct Rom rom;
+  Lane lanes[NLANES];
+  Box boxpool[420];
+  uint16_t strip[SW * STRIP] __attribute__((aligned(4)));
+  uint8_t fb[SW * SH] __attribute__((aligned(4)));
+};
+
+#if PLATFORM_DEVICE && !defined(HOST)
+// On the calculator a reserved register holds its address.
+static struct State state_mem;
+register struct State *g9 __asm__("r9");
+#define G (*g9)
+#else
+static struct State G;
+#endif
+
+#define ox G.ox
+#define oy G.oy
+#define lxa G.lxa
+#define lxb G.lxb
+#define cam_x G.cam_x
+#define cam_z G.cam_z
+#define shake G.shake
+#define st_time G.st_time
+#define game_time G.game_time
+#define fade G.fade
+#define restart_t G.restart_t
+#define eagle_x G.eagle_x
+#define eagle_y G.eagle_y
+#define eagle_z G.eagle_z
+#define state G.state
+#define paused G.paused
+#define show_logo G.show_logo
+#define new_top G.new_top
+#define restarting G.restarting
+#define eagle_on G.eagle_on
+#define score G.score
+#define top_score G.top_score
+#define coins G.coins
+#define gen_next G.gen_next
+#define set_left G.set_left
+#define set_type G.set_type
+#define prev_dir G.prev_dir
+#define start_end G.start_end
+#define reach_prev G.reach_prev
+#define rng_s G.rng_s
+#define fs_buf G.fs_buf
+#define fs_size G.fs_size
+#define P G.P
+#define shade G.shade
+#define fpal G.fpal
+#define models G.models
+#define parts G.parts
+#define boxpool G.boxpool
+#define lanes G.lanes
+#define strip G.strip
+#define fb G.fb
+
+// ---------------------------------------------------------------------------
+// Constant data
+
+enum { M_V0 = NMATS, M_V1, M_V2 };
+#define NONE 0xFF
+enum { S_CHICKEN, S_CAR, S_TRUCK, S_ENGINE, S_WAGON, S_LOG, S_LILY = S_LOG + 3, S_ROCK, S_SIGNAL, S_EAGLE };
+
+// Per model: shape | quarter turns clockwise << 4 (4: mirrored east-west), variants.
+#define CAR(t, s, sign) {S_CAR, t, s, sign}, {S_CAR | 4 << 4, t, s, sign}
+#define TRUCK(c) {S_TRUCK, c}, {S_TRUCK | 4 << 4, c}
+// Font glyph: 10 rows of 10 pixels, stored in the top bits of 12.
+#define GLYPH(a, b, c, d, e, f, g, h, i, j) {a << 2, b << 2, c << 2, d << 2, e << 2, f << 2, g << 2, h << 2, i << 2, j << 2}
+
+#ifdef ROM_PACKED
+// The calculator build stores the tables below compressed (tools/pack_rom.py).
+static const uint8_t rom_packed[] = {
+#include ROM_PACKED
+};
+#else
+static const struct Rom rom_init = {
+  // Palette. Colors sampled from the original game (lit top faces, ambient-only
+  // side faces, and shadowed ground).
+  .pal = {
+    [C_GRASS] = RGB(217, 252, 130), [C_GRASS2] = RGB(208, 244, 120),
+    [C_GRASS_O] = RGB(192, 235, 110), [C_GRASS2_O] = RGB(184, 227, 102),
+    [C_GRASS_SH] = RGB(96, 116, 54), [C_GRASS_OSH] = RGB(84, 102, 43),
+    [C_ROAD] = RGB(97, 104, 108), [C_ROAD_O] = RGB(89, 96, 100),
+    [C_ROAD_SH] = RGB(40, 42, 42), [C_ROAD_OSH] = RGB(36, 38, 38),
+    [C_ROAD_SIDE] = RGB(61, 64, 64), [C_DASH] = RGB(141, 151, 155), [C_DASH_O] = RGB(129, 141, 144),
+    [C_WATER] = RGB(170, 252, 254), [C_WATER_O] = RGB(144, 236, 252),
+    [C_WATER_SH] = RGB(75, 116, 131), [C_WATER_OSH] = RGB(64, 104, 122), [C_FOAM] = RGB(255, 255, 255),
+    [C_RAIL] = RGB(170, 167, 183), [C_RAIL_S] = RGB(74, 71, 76),
+    [C_TIE] = RGB(127, 85, 79), [C_TIE_S] = RGB(54, 33, 29),
+    [C_RAIL_SH] = RGB(74, 71, 76), [C_TIE_SH] = RGB(54, 33, 29),
+    [C_WHITE] = RGB(255, 255, 255), [C_GRAY] = RGB(144, 144, 144),
+    [C_COMB] = RGB(239, 130, 131), [C_COMB_S] = RGB(117, 55, 53),
+    [C_BEAK] = RGB(240, 146, 107), [C_BEAK_S] = RGB(120, 63, 43), [C_EYE] = RGB(31, 17, 13),
+    [C_LEAF] = RGB(208, 234, 90), [C_LEAF_A] = RGB(100, 112, 39), [C_LEAF_B] = RGB(91, 101, 33),
+    [C_TRUNK] = RGB(64, 41, 35), [C_TRUNK_E] = RGB(58, 32, 27),
+    [C_ROCK] = RGB(252, 239, 254), [C_ROCK_S] = RGB(111, 103, 108),
+    [C_LOG] = RGB(150, 102, 92), [C_LOG_BARK] = RGB(135, 85, 76), [C_LOG_S] = RGB(64, 41, 35),
+    [C_LOG_END] = RGB(96, 62, 55), [C_LOG_SH] = RGB(66, 45, 40),
+    [C_LILY] = RGB(115, 229, 135), [C_LILY_S] = RGB(46, 99, 55),
+    [C_BLACK] = RGB(0, 0, 0), [C_CABIN_S] = RGB(135, 142, 144), [C_UNDER] = RGB(71, 66, 80),
+    [C_HUB] = RGB(160, 166, 170),
+    [C_BLUE_T] = RGB(120, 248, 253), [C_BLUE_S] = RGB(48, 107, 116), [C_BLUE_S2] = RGB(31, 78, 95),
+    [C_GREEN_T] = RGB(196, 244, 124), [C_GREEN_S] = RGB(95, 114, 56), [C_GREEN_S2] = RGB(77, 102, 48),
+    [C_YELLOW_T] = RGB(255, 254, 129), [C_YELLOW_S] = RGB(138, 123, 56), [C_YELLOW_S2] = RGB(118, 104, 48),
+    [C_ORANGE_T] = RGB(255, 140, 84), [C_ORANGE_S] = RGB(140, 54, 34), [C_ORANGE_S2] = RGB(114, 42, 28),
+    [C_PURPLE_T] = RGB(182, 160, 255), [C_PURPLE_S] = RGB(82, 64, 142), [C_PURPLE_S2] = RGB(66, 50, 118),
+    [C_RED_T] = RGB(250, 92, 100), [C_RED_S] = RGB(120, 30, 38),
+    [C_TBLUE_T] = RGB(64, 184, 248), [C_TBLUE_S] = RGB(8, 82, 124),
+    [C_TGREEN_T] = RGB(110, 214, 198), [C_TGREEN_S] = RGB(36, 98, 90),
+    [C_BOX_T] = RGB(236, 236, 240), [C_BOX_S] = RGB(128, 130, 138), [C_BOX_S2] = RGB(112, 114, 122),
+    [C_TRAIN_T] = RGB(96, 200, 252), [C_TRAIN_S] = RGB(22, 116, 176), [C_TRAIN_S2] = RGB(14, 88, 142),
+    [C_TRAIN_W] = RGB(200, 236, 236), [C_TRAIN_WS] = RGB(88, 118, 124),
+    [C_TRAIN_Y] = RGB(252, 252, 131), [C_TRAIN_YS] = RGB(128, 124, 52),
+    [C_POLE_R] = RGB(196, 60, 72), [C_POLE_RS] = RGB(89, 33, 31),
+    [C_POLE_W] = RGB(238, 238, 238), [C_POLE_WS] = RGB(144, 144, 144),
+    [C_LAMP_OFF] = RGB(62, 19, 24), [C_LAMP_ON] = RGB(255, 36, 36),
+    [C_SIGNAL] = RGB(36, 36, 40), [C_SIGNAL_S] = RGB(14, 14, 16),
+    [C_COIN] = RGB(255, 238, 70), [C_COIN_S] = RGB(176, 132, 16), [C_COIN_C] = RGB(255, 36, 16),
+    [C_EAGLE] = RGB(136, 72, 64), [C_EAGLE_S] = RGB(74, 36, 34),
+    [C_EAGLE_H] = RGB(250, 250, 250), [C_EAGLE_HS] = RGB(150, 150, 150),
+    [C_EAGLE_B] = RGB(255, 170, 60), [C_EAGLE_BS] = RGB(140, 80, 24),
+    [C_BTN] = RGB(86, 196, 248), [C_BTN_S] = RGB(36, 150, 220), [C_GOLD] = RGB(248, 232, 77),
+    [C_OUTLINE] = RGB(0, 0, 0),
+  },
+  .shade_pairs = {
+      {C_GRASS, C_GRASS_SH}, {C_GRASS2, C_GRASS_SH}, {C_GRASS_O, C_GRASS_OSH}, {C_GRASS2_O, C_GRASS_OSH},
+      {C_ROAD, C_ROAD_SH}, {C_ROAD_O, C_ROAD_OSH}, {C_DASH, C_ROAD_SH}, {C_DASH_O, C_ROAD_OSH},
+      {C_WATER, C_WATER_SH}, {C_WATER_O, C_WATER_OSH}, {C_FOAM, C_WATER_SH},
+      {C_RAIL, C_RAIL_SH}, {C_TIE, C_TIE_SH}, {C_LOG, C_LOG_SH}, {C_LOG_BARK, C_LOG_SH}, {C_LILY, C_LILY_S},
+  },
+  .mats = {
+    [M_WHITE] = {C_WHITE, C_GRAY, C_GRAY}, [M_COMB] = {C_COMB, C_COMB_S, C_COMB_S},
+    [M_BEAK] = {C_BEAK, C_BEAK_S, C_BEAK_S}, [M_EYE] = {C_EYE, C_EYE, C_EYE},
+    [M_TRUNK] = {C_TRUNK, C_TRUNK, C_TRUNK_E}, [M_ROCK] = {C_ROCK, C_ROCK_S, C_ROCK_S},
+    [M_LOG] = {C_LOG, C_LOG_S, C_LOG_END}, [M_LOG_BARK] = {C_LOG_BARK, C_LOG_S, C_LOG_END},
+    [M_LILY] = {C_LILY, C_LILY_S, C_LILY_S},
+    [M_BLACK] = {C_BLACK, C_BLACK, C_BLACK}, [M_CABIN] = {C_WHITE, C_CABIN_S, C_CABIN_S},
+    [M_UNDER] = {C_UNDER, C_UNDER, C_UNDER}, [M_HUB] = {C_HUB, C_HUB, C_HUB},
+    [M_BLUE] = {C_BLUE_T, C_BLUE_S, C_BLUE_S}, [M_BLUE2] = {C_BLUE_T, C_BLUE_S2, C_BLUE_S2},
+    [M_GREEN] = {C_GREEN_T, C_GREEN_S, C_GREEN_S}, [M_GREEN2] = {C_GREEN_T, C_GREEN_S2, C_GREEN_S2},
+    [M_YELLOW] = {C_YELLOW_T, C_YELLOW_S, C_YELLOW_S}, [M_YELLOW2] = {C_YELLOW_T, C_YELLOW_S2, C_YELLOW_S2},
+    [M_ORANGE] = {C_ORANGE_T, C_ORANGE_S, C_ORANGE_S}, [M_ORANGE2] = {C_ORANGE_T, C_ORANGE_S2, C_ORANGE_S2},
+    [M_PURPLE] = {C_PURPLE_T, C_PURPLE_S, C_PURPLE_S}, [M_PURPLE2] = {C_PURPLE_T, C_PURPLE_S2, C_PURPLE_S2},
+    [M_RED] = {C_RED_T, C_RED_S, C_RED_S}, [M_TBLUE] = {C_TBLUE_T, C_TBLUE_S, C_TBLUE_S},
+    [M_TGREEN] = {C_TGREEN_T, C_TGREEN_S, C_TGREEN_S},
+    [M_BOX] = {C_BOX_T, C_BOX_S, C_BOX_S}, [M_BOX2] = {C_BOX_T, C_BOX_S2, C_BOX_S2},
+    [M_TRAIN] = {C_TRAIN_T, C_TRAIN_S, C_TRAIN_S}, [M_TRAIN2] = {C_TRAIN_T, C_TRAIN_S2, C_TRAIN_S2},
+    [M_TRAIN_W] = {C_TRAIN_W, C_TRAIN_WS, C_TRAIN_WS}, [M_TRAIN_Y] = {C_TRAIN_Y, C_TRAIN_YS, C_TRAIN_YS},
+    [M_POLE_R] = {C_POLE_R, C_POLE_RS, C_POLE_RS}, [M_POLE_W] = {C_POLE_W, C_POLE_WS, C_POLE_WS},
+    [M_SIGNAL] = {C_SIGNAL, C_SIGNAL_S, C_SIGNAL_S},
+    [M_LAMP_OFF] = {C_LAMP_OFF, C_LAMP_OFF, C_LAMP_OFF}, [M_LAMP_ON] = {C_LAMP_ON, C_LAMP_ON, C_LAMP_ON},
+    [M_EAGLE] = {C_EAGLE, C_EAGLE_S, C_EAGLE_S}, [M_EAGLE_H] = {C_EAGLE_H, C_EAGLE_HS, C_EAGLE_HS},
+    [M_EAGLE_B] = {C_EAGLE_B, C_EAGLE_BS, C_EAGLE_BS},
+  },
+  // Model shapes, facing north (creatures) or east (vehicles). Materials M_V0..M_V2
+  // are filled in per model (colors, lamps); a variant of NONE drops the box.
+  .shapes = {
+    // chicken
+    {-6, 0, -2, 3, 6, 3, M_BEAK}, {3, 0, -2, 3, 6, 3, M_BEAK},        // legs
+    {-6, 0, 1, 3, 1, 2, M_BEAK}, {3, 0, 1, 3, 1, 2, M_BEAK},          // toes
+    {-6, 6, -9, 12, 12, 16, M_WHITE},                                 // body
+    {-9, 9, -6, 3, 6, 9, M_WHITE}, {6, 9, -6, 3, 6, 9, M_WHITE},      // wings
+    {-4, 14, -12, 8, 6, 3, M_WHITE},                                  // tail
+    {-6, 18, -3, 12, 14, 10, M_WHITE},                                // head
+    {-2, 32, -1, 5, 4, 7, M_COMB},                                    // comb
+    {-2, 24, 7, 4, 3, 3, M_BEAK},                                     // beak
+    {-2, 21, 7, 4, 3, 1, M_COMB},                                     // wattle
+    {-7, 26, 2, 1, 2, 2, M_EYE}, {6, 26, 2, 1, 2, 2, M_EYE},          // eyes
+    // car: wheels, chassis, two-tone body, cabin with windows, taxi sign
+    {-21, 0, -18, 12, 10, 4, M_BLACK}, {-21, 0, 14, 12, 10, 4, M_BLACK}, {-17, 3, -19, 4, 4, 1, M_HUB},
+    {9, 0, -18, 12, 10, 4, M_BLACK}, {9, 0, 14, 12, 10, 4, M_BLACK}, {13, 3, -19, 4, 4, 1, M_HUB},
+    {-25, 3, -15, 50, 5, 30, M_UNDER},
+    {-27, 8, -17, 54, 7, 34, M_V1}, {-27, 15, -17, 54, 7, 34, M_V0},
+    {-14, 22, -14, 26, 2, 28, M_CABIN}, {-14, 24, -14, 12, 7, 28, M_BLACK}, {-2, 24, -14, 3, 7, 28, M_CABIN},
+    {1, 24, -14, 11, 7, 28, M_BLACK}, {-14, 31, -14, 26, 5, 28, M_CABIN},
+    {-5, 36, -4, 8, 4, 8, M_V2},
+    // truck: wheels, chassis, box, cab
+    {-46, 0, -19, 13, 11, 4, M_BLACK}, {-46, 0, 15, 13, 11, 4, M_BLACK}, {-42, 4, -20, 5, 4, 1, M_HUB},
+    {-30, 0, -19, 13, 11, 4, M_BLACK}, {-30, 0, 15, 13, 11, 4, M_BLACK}, {-26, 4, -20, 5, 4, 1, M_HUB},
+    {30, 0, -19, 13, 11, 4, M_BLACK}, {30, 0, 15, 13, 11, 4, M_BLACK}, {34, 4, -20, 5, 4, 1, M_HUB},
+    {-54, 4, -16, 108, 6, 32, M_UNDER},
+    {-56, 10, -18, 80, 30, 36, M_BOX2}, {-56, 40, -18, 80, 12, 36, M_BOX},
+    {26, 10, -18, 30, 14, 36, M_V0}, {28, 24, -16, 24, 9, 32, M_BLACK}, {28, 33, -16, 24, 5, 32, M_V0},
+    // train engine (4 tiles)
+    {-66, 0, -15, 26, 8, 30, M_BLACK}, {40, 0, -15, 26, 8, 30, M_BLACK},
+    {-80, 8, -18, 154, 14, 36, M_TRAIN2}, {-80, 22, -18, 154, 12, 36, M_TRAIN_W}, {-80, 34, -18, 154, 16, 36, M_TRAIN},
+    {74, 8, -18, 6, 42, 36, M_TRAIN_Y}, {60, 24, -19, 12, 8, 1, M_BLACK},
+    // train wagon
+    {-66, 0, -15, 26, 8, 30, M_BLACK}, {40, 0, -15, 26, 8, 30, M_BLACK},
+    {-79, 8, -18, 158, 14, 36, M_TRAIN2}, {-79, 22, -18, 158, 12, 36, M_TRAIN_W}, {-79, 34, -18, 158, 16, 36, M_TRAIN},
+    // logs of 2, 3 and 4 tiles with bark patches
+    {-38, 0, -13, 76, 9, 26, M_LOG},
+    {-34, 9, -9, 10, 1, 5, M_LOG_BARK}, {-18, 9, 3, 12, 1, 6, M_LOG_BARK},
+    {6, 9, -9, 10, 1, 5, M_LOG_BARK}, {22, 9, 3, 12, 1, 6, M_LOG_BARK},
+    {-58, 0, -13, 116, 9, 26, M_LOG},
+    {-54, 9, -9, 10, 1, 5, M_LOG_BARK}, {-38, 9, 3, 12, 1, 6, M_LOG_BARK},
+    {-14, 9, -9, 10, 1, 5, M_LOG_BARK}, {2, 9, 3, 12, 1, 6, M_LOG_BARK},
+    {26, 9, -9, 10, 1, 5, M_LOG_BARK}, {42, 9, 3, 12, 1, 6, M_LOG_BARK},
+    {-78, 0, -13, 156, 9, 26, M_LOG},
+    {-74, 9, -9, 10, 1, 5, M_LOG_BARK}, {-58, 9, 3, 12, 1, 6, M_LOG_BARK},
+    {-34, 9, -9, 10, 1, 5, M_LOG_BARK}, {-18, 9, 3, 12, 1, 6, M_LOG_BARK},
+    {6, 9, -9, 10, 1, 5, M_LOG_BARK}, {22, 9, 3, 12, 1, 6, M_LOG_BARK},
+    {46, 9, -9, 10, 1, 5, M_LOG_BARK}, {62, 9, 3, 12, 1, 6, M_LOG_BARK},
+    // lily pad
+    {-11, 0, -11, 22, 2, 22, M_LILY}, {-14, 0, -6, 3, 2, 12, M_LILY}, {11, 0, -7, 3, 2, 10, M_LILY},
+    // rock
+    {-15, 0, -13, 30, 14, 26, M_ROCK}, {-15, 14, -5, 22, 8, 18, M_ROCK},
+    // railroad signal: striped pole, black head with two lamps
+    {-2, 0, -2, 5, 4, 5, M_POLE_W}, {-2, 4, -2, 5, 10, 5, M_POLE_R}, {-2, 14, -2, 5, 4, 5, M_POLE_W},
+    {-2, 18, -2, 5, 10, 5, M_POLE_R}, {-2, 28, -2, 5, 4, 5, M_POLE_W}, {-2, 32, -2, 5, 12, 5, M_POLE_R},
+    {-13, 44, -3, 26, 6, 6, M_SIGNAL}, {-13, 36, -3, 8, 8, 6, M_SIGNAL}, {5, 36, -3, 8, 8, 6, M_SIGNAL},
+    {-12, 37, -4, 6, 6, 1, M_V0}, {6, 37, -4, 6, 6, 1, M_V1},
+    // eagle, flying south toward the camera, wings spread
+    {-30, 10, -6, 22, 3, 14, M_EAGLE}, {8, 10, -6, 22, 3, 14, M_EAGLE}, {-8, 4, -12, 16, 12, 22, M_EAGLE},
+    {-6, 7, 10, 12, 4, 9, M_EAGLE_H}, {-6, 10, -21, 12, 10, 9, M_EAGLE_H}, {-2, 12, -25, 4, 4, 4, M_EAGLE_B},
+    {-6, 0, -8, 3, 4, 3, M_EAGLE_B}, {3, 0, -8, 3, 4, 3, M_EAGLE_B},
+  },
+  .shape_at = {0, 14, 29, 44, 51, 56, 61, 68, 77, 80, 82, 93, 101},
+  .model_def = {
+    {S_CHICKEN}, {S_CHICKEN | 1 << 4}, {S_CHICKEN | 2 << 4}, {S_CHICKEN | 3 << 4},
+    CAR(M_BLUE, M_BLUE2, NONE), CAR(M_GREEN, M_GREEN2, NONE), CAR(M_YELLOW, M_YELLOW2, M_YELLOW),
+    CAR(M_ORANGE, M_ORANGE2, NONE), CAR(M_PURPLE, M_PURPLE2, NONE),
+    TRUCK(M_RED), TRUCK(M_TBLUE), TRUCK(M_TGREEN),
+    {S_ENGINE}, {S_ENGINE | 4 << 4}, {S_WAGON},
+    {S_LOG}, {S_LOG + 1}, {S_LOG + 2}, {S_LILY}, {S_ROCK},
+    {S_SIGNAL, M_LAMP_OFF, M_LAMP_OFF}, {S_SIGNAL, M_LAMP_ON, M_LAMP_OFF}, {S_SIGNAL, M_LAMP_OFF, M_LAMP_ON},
+    {S_EAGLE},
+  },
+  .obstacle_pct = {10, 10, 20, 20, 25, 25, 30, 30, 35, 40, 45, 50},  // tree density by distance (25 rows each)
+  .kinds = {L_GRASS, L_ROAD, L_RIVER, L_RAIL},
+  .dx = {0, 1, 0, -1},
+  .dz = {1, 0, -1, 0},
+  // Font: the original's blocky digits (decoded from the game) and matching
+  // capitals. 10 rows; bit 11 is the leftmost column.
+  .font_chars = "0123456789ACDENOPRSTWY",
+  .font_w = {10, 5, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 12, 10},
+  .font = {
+    GLYPH(0x1FE, 0x3FF, 0x3CF, 0x3CF, 0x3CF, 0x3CF, 0x3CF, 0x3CF, 0x3FF, 0x1FE),  // 0
+    GLYPH(0x3C0, 0x3E0, 0x1E0, 0x1E0, 0x1E0, 0x1E0, 0x1E0, 0x1E0, 0x1E0, 0x1E0),  // 1
+    GLYPH(0x3FE, 0x3FF, 0x00F, 0x00F, 0x1FF, 0x3FE, 0x3C0, 0x3C0, 0x3FF, 0x3FF),  // 2
+    GLYPH(0x3FE, 0x3FF, 0x00F, 0x00F, 0x07E, 0x07E, 0x00F, 0x00F, 0x3FF, 0x3FE),  // 3
+    GLYPH(0x3CF, 0x3CF, 0x3CF, 0x3CF, 0x3FF, 0x1FF, 0x00F, 0x00F, 0x00F, 0x00F),  // 4
+    GLYPH(0x3FF, 0x3FF, 0x3C0, 0x3C0, 0x3FE, 0x1FF, 0x00F, 0x00F, 0x3FF, 0x3FE),  // 5
+    GLYPH(0x1FF, 0x3FF, 0x3C0, 0x3C0, 0x3FE, 0x3FF, 0x3CF, 0x3CF, 0x3FF, 0x1FE),  // 6
+    GLYPH(0x3FE, 0x3FF, 0x00F, 0x00F, 0x00F, 0x00F, 0x00F, 0x00F, 0x00F, 0x00F),  // 7
+    GLYPH(0x1FE, 0x3FF, 0x3CF, 0x3CF, 0x1FE, 0x1FE, 0x3CF, 0x3CF, 0x3FF, 0x1FE),  // 8
+    GLYPH(0x1FE, 0x3FF, 0x3CF, 0x3CF, 0x3FF, 0x1FF, 0x00F, 0x00F, 0x3FF, 0x3FE),  // 9
+    GLYPH(0x1FE, 0x3FF, 0x3CF, 0x3CF, 0x3FF, 0x3FF, 0x3CF, 0x3CF, 0x3CF, 0x3CF),  // A
+    GLYPH(0x1FF, 0x3FF, 0x3C0, 0x3C0, 0x3C0, 0x3C0, 0x3C0, 0x3C0, 0x3FF, 0x1FF),  // C
+    GLYPH(0x3FE, 0x3FF, 0x3CF, 0x3CF, 0x3CF, 0x3CF, 0x3CF, 0x3CF, 0x3FF, 0x3FE),  // D
+    GLYPH(0x1FF, 0x3FF, 0x3C0, 0x3C0, 0x3F8, 0x3F8, 0x3C0, 0x3C0, 0x3FF, 0x1FF),  // E
+    GLYPH(0x3CF, 0x3EF, 0x3FF, 0x3FF, 0x3DF, 0x3CF, 0x3CF, 0x3CF, 0x3CF, 0x3CF),  // N
+    GLYPH(0x1FE, 0x3FF, 0x3CF, 0x3CF, 0x3CF, 0x3CF, 0x3CF, 0x3CF, 0x3FF, 0x1FE),  // O
+    GLYPH(0x3FE, 0x3FF, 0x3CF, 0x3CF, 0x3FF, 0x3FE, 0x3C0, 0x3C0, 0x3C0, 0x3C0),  // P
+    GLYPH(0x3FE, 0x3FF, 0x3CF, 0x3CF, 0x3FE, 0x3FF, 0x3CF, 0x3CF, 0x3CF, 0x3CF),  // R
+    GLYPH(0x1FF, 0x3FF, 0x3C0, 0x3C0, 0x3FE, 0x1FF, 0x00F, 0x00F, 0x3FF, 0x3FE),  // S
+    GLYPH(0x3FF, 0x3FF, 0x078, 0x078, 0x078, 0x078, 0x078, 0x078, 0x078, 0x078),  // T
+    {0xF0F, 0xF0F, 0xF0F, 0xF6F, 0xF6F, 0xFFF, 0xFFF, 0xF9F, 0xF0F, 0xF0F},  // W
+    GLYPH(0x3CF, 0x3CF, 0x3CF, 0x3CF, 0x3FF, 0x1FE, 0x078, 0x078, 0x078, 0x078),  // Y
+  },
+  // Pixel-art pointing hand (tap hint), 12x14: outline and fill masks.
+  .hand_ol = {0x0E0, 0x1B0, 0x1B0, 0x1BE, 0x1B5, 0x7B5, 0x9D5, 0x8C1,
+                                     0x801, 0x401, 0x402, 0x202, 0x1FC, 0x1FC},
+  .hand_in = {0x000, 0x040, 0x040, 0x040, 0x04A, 0x04A, 0x62A, 0x73E,
+                                     0x7FE, 0x3FE, 0x3FC, 0x1FC, 0x000, 0x000},
+  .save_name = "crossyroad.sav",
+  .slots = {0x90010000u, 0x90410000u},  // userland headers of the two firmware slots
+  .s_crossy = "CROSSY",
+  .s_road = "ROAD",
+  .s_new_top = "NEW TOP",
+};
+#endif
+
+#define pal G.rom.pal
+#define shade_pairs G.rom.shade_pairs
+#define mats G.rom.mats
+#define shapes G.rom.shapes
+#define shape_at G.rom.shape_at
+#define model_def G.rom.model_def
+#define obstacle_pct G.rom.obstacle_pct
+#define kinds G.rom.kinds
+#define DX G.rom.dx
+#define DZ G.rom.dz
+#define font_chars G.rom.font_chars
+#define font_w G.rom.font_w
+#define font G.rom.font
+#define hand_ol G.rom.hand_ol
+#define hand_in G.rom.hand_in
+#define save_name G.rom.save_name
+#define slots G.rom.slots
+#define str_crossy G.rom.s_crossy
+#define str_road G.rom.s_road
+#define str_new_top G.rom.s_new_top
 
 static void init_palette(void) {
   for (int i = 0; i < NCOLORS; i++) shade[i] = i;
-  static const uint8_t sh[][2] = {
-    {C_GRASS, C_GRASS_SH}, {C_GRASS2, C_GRASS_SH}, {C_GRASS_O, C_GRASS_OSH}, {C_GRASS2_O, C_GRASS_OSH},
-    {C_ROAD, C_ROAD_SH}, {C_ROAD_O, C_ROAD_OSH}, {C_DASH, C_ROAD_SH}, {C_DASH_O, C_ROAD_OSH},
-    {C_WATER, C_WATER_SH}, {C_WATER_O, C_WATER_OSH}, {C_FOAM, C_WATER_SH},
-    {C_RAIL, C_RAIL_SH}, {C_TIE, C_TIE_SH}, {C_LOG, C_LOG_SH}, {C_LOG_BARK, C_LOG_SH}, {C_LILY, C_LILY_S},
-  };
-  for (unsigned i = 0; i < sizeof(sh) / sizeof(sh[0]); i++) shade[sh[i][0]] = sh[i][1];
+  for (unsigned i = 0; i < sizeof(shade_pairs) / sizeof(shade_pairs[0]); i++) shade[shade_pairs[i][0]] = shade_pairs[i][1];
 }
 
 // ---------------------------------------------------------------------------
@@ -229,8 +587,6 @@ static void fill_rect(int x, int y, int w, int h, int c) {
 #define PZY (K * -0.63658f)
 #define PYY (K * -0.73924f)
 
-static float ox, oy;  // screen position of the world origin (whole pixels)
-
 static inline float sx_of(float x, float z) { return ox + PXX * x + PZX * z; }
 static inline float sy_of(float x, float y, float z) { return oy + PXY * x + PZY * z + PYY * y; }
 
@@ -299,67 +655,9 @@ static void east_quad(float x, float z0, float z1, float y0, float y1, int c) {
 // ---------------------------------------------------------------------------
 // Box models. Units: 1/40 tile. Origin: model center, on the ground.
 
-typedef struct { int8_t x, y, z; uint8_t w, h, d, m; } Box;
-typedef struct { uint8_t t, s, e; } Mat;  // top, south, east colors
-
-enum {
-  M_WHITE, M_COMB, M_BEAK, M_EYE, M_TRUNK, M_ROCK, M_LOG, M_LOG_BARK, M_LILY,
-  M_BLACK, M_CABIN, M_UNDER, M_HUB,
-  M_BLUE, M_BLUE2, M_GREEN, M_GREEN2, M_YELLOW, M_YELLOW2, M_ORANGE, M_ORANGE2, M_PURPLE, M_PURPLE2,
-  M_RED, M_TBLUE, M_TGREEN, M_BOX, M_BOX2,
-  M_TRAIN, M_TRAIN2, M_TRAIN_W, M_TRAIN_Y,
-  M_POLE_R, M_POLE_W, M_SIGNAL, M_LAMP_OFF, M_LAMP_ON,
-  M_EAGLE, M_EAGLE_H, M_EAGLE_B,
-  NMATS
-};
-
-static const Mat mats[NMATS] = {
-  [M_WHITE] = {C_WHITE, C_GRAY, C_GRAY}, [M_COMB] = {C_COMB, C_COMB_S, C_COMB_S},
-  [M_BEAK] = {C_BEAK, C_BEAK_S, C_BEAK_S}, [M_EYE] = {C_EYE, C_EYE, C_EYE},
-  [M_TRUNK] = {C_TRUNK, C_TRUNK, C_TRUNK_E}, [M_ROCK] = {C_ROCK, C_ROCK_S, C_ROCK_S},
-  [M_LOG] = {C_LOG, C_LOG_S, C_LOG_END}, [M_LOG_BARK] = {C_LOG_BARK, C_LOG_S, C_LOG_END},
-  [M_LILY] = {C_LILY, C_LILY_S, C_LILY_S},
-  [M_BLACK] = {C_BLACK, C_BLACK, C_BLACK}, [M_CABIN] = {C_WHITE, C_CABIN_S, C_CABIN_S},
-  [M_UNDER] = {C_UNDER, C_UNDER, C_UNDER}, [M_HUB] = {C_HUB, C_HUB, C_HUB},
-  [M_BLUE] = {C_BLUE_T, C_BLUE_S, C_BLUE_S}, [M_BLUE2] = {C_BLUE_T, C_BLUE_S2, C_BLUE_S2},
-  [M_GREEN] = {C_GREEN_T, C_GREEN_S, C_GREEN_S}, [M_GREEN2] = {C_GREEN_T, C_GREEN_S2, C_GREEN_S2},
-  [M_YELLOW] = {C_YELLOW_T, C_YELLOW_S, C_YELLOW_S}, [M_YELLOW2] = {C_YELLOW_T, C_YELLOW_S2, C_YELLOW_S2},
-  [M_ORANGE] = {C_ORANGE_T, C_ORANGE_S, C_ORANGE_S}, [M_ORANGE2] = {C_ORANGE_T, C_ORANGE_S2, C_ORANGE_S2},
-  [M_PURPLE] = {C_PURPLE_T, C_PURPLE_S, C_PURPLE_S}, [M_PURPLE2] = {C_PURPLE_T, C_PURPLE_S2, C_PURPLE_S2},
-  [M_RED] = {C_RED_T, C_RED_S, C_RED_S}, [M_TBLUE] = {C_TBLUE_T, C_TBLUE_S, C_TBLUE_S},
-  [M_TGREEN] = {C_TGREEN_T, C_TGREEN_S, C_TGREEN_S},
-  [M_BOX] = {C_BOX_T, C_BOX_S, C_BOX_S}, [M_BOX2] = {C_BOX_T, C_BOX_S2, C_BOX_S2},
-  [M_TRAIN] = {C_TRAIN_T, C_TRAIN_S, C_TRAIN_S}, [M_TRAIN2] = {C_TRAIN_T, C_TRAIN_S2, C_TRAIN_S2},
-  [M_TRAIN_W] = {C_TRAIN_W, C_TRAIN_WS, C_TRAIN_WS}, [M_TRAIN_Y] = {C_TRAIN_Y, C_TRAIN_YS, C_TRAIN_YS},
-  [M_POLE_R] = {C_POLE_R, C_POLE_RS, C_POLE_RS}, [M_POLE_W] = {C_POLE_W, C_POLE_WS, C_POLE_WS},
-  [M_SIGNAL] = {C_SIGNAL, C_SIGNAL_S, C_SIGNAL_S},
-  [M_LAMP_OFF] = {C_LAMP_OFF, C_LAMP_OFF, C_LAMP_OFF}, [M_LAMP_ON] = {C_LAMP_ON, C_LAMP_ON, C_LAMP_ON},
-  [M_EAGLE] = {C_EAGLE, C_EAGLE_S, C_EAGLE_S}, [M_EAGLE_H] = {C_EAGLE_H, C_EAGLE_HS, C_EAGLE_HS},
-  [M_EAGLE_B] = {C_EAGLE_B, C_EAGLE_BS, C_EAGLE_BS},
-};
-
-// The chicken, facing north (+z).
-static const Box chicken_boxes[] = {
-  {-6, 0, -2, 3, 6, 3, M_BEAK},       // legs
-  {3, 0, -2, 3, 6, 3, M_BEAK},
-  {-6, 0, 1, 3, 1, 2, M_BEAK},        // toes
-  {3, 0, 1, 3, 1, 2, M_BEAK},
-  {-6, 6, -9, 12, 12, 16, M_WHITE},   // body
-  {-9, 9, -6, 3, 6, 9, M_WHITE},      // wings
-  {6, 9, -6, 3, 6, 9, M_WHITE},
-  {-4, 14, -12, 8, 6, 3, M_WHITE},    // tail
-  {-6, 18, -3, 12, 14, 10, M_WHITE},  // head
-  {-2, 32, -1, 5, 4, 7, M_COMB},      // comb
-  {-2, 24, 7, 4, 3, 3, M_BEAK},       // beak
-  {-2, 21, 7, 4, 3, 1, M_COMB},       // wattle
-  {-7, 26, 2, 1, 2, 2, M_EYE},        // eyes
-  {6, 26, 2, 1, 2, 2, M_EYE},
-};
-#define NCHICK (int)(sizeof(chicken_boxes) / sizeof(Box))
-
 // Painter's order: a box goes first when it is behind (west of, north of, or
 // below) another one it overlaps on screen.
-static int behind(const Box *a, const Box *b) {
+static NOINLINE int behind(const Box *a, const Box *b) {
   return a->x + a->w <= b->x || a->z >= b->z + b->d || a->y + a->h <= b->y;
 }
 
@@ -381,168 +679,31 @@ static void sort_boxes(Box *bx, int n) {
   memcpy(bx, out, n * sizeof(Box));
 }
 
-// Model cache: sorted box lists built at startup.
-typedef struct { uint16_t off; uint8_t n; uint8_t reach; } Mdl;
-enum {
-  MD_CHICKEN,                   // 4 facings
-  MD_CAR = MD_CHICKEN + 4,      // 5 colors x 2 directions
-  MD_TRUCK = MD_CAR + 10,       // 3 colors x 2 directions
-  MD_ENGINE = MD_TRUCK + 6,     // 2 directions
-  MD_WAGON = MD_ENGINE + 2,
-  MD_LOG = MD_WAGON + 1,        // 2..4 tiles
-  MD_LILY = MD_LOG + 3,
-  MD_ROCK,
-  MD_SIGNAL,                    // lamps off, left on, right on
-  MD_EAGLE = MD_SIGNAL + 3,
-  NMODELS
-};
-static Mdl models[NMODELS];
-static Box boxpool[420];
-static int boxpool_n;
-static Box tmpb[32];
-static int tmpn;
-
-static void tb(int x, int y, int z, int w, int h, int d, int m) {
-  tmpb[tmpn++] = (Box){(int8_t)x, (int8_t)y, (int8_t)z, (uint8_t)w, (uint8_t)h, (uint8_t)d, (uint8_t)m};
-}
-
-// Store the temporary boxes as model id, rotated r quarter turns clockwise
-// (r = 4 mirrors east-west).
-static void commit(int id, int r) {
-  Box *dst = boxpool + boxpool_n;
-  int reach = 0;
-  for (int i = 0; i < tmpn; i++) {
-    Box b = tmpb[i];
-    int x0 = b.x, x1 = b.x + b.w, z0 = b.z, z1 = b.z + b.d;
-    if (r == 1) { b.x = z0; b.w = z1 - z0; b.z = -x1; b.d = x1 - x0; }
-    else if (r == 2) { b.x = -x1; b.z = -z1; }
-    else if (r == 3) { b.x = -z1; b.w = z1 - z0; b.z = x0; b.d = x1 - x0; }
-    else if (r == 4) b.x = -x1;  // mirror east-west
-    dst[i] = b;
-    int e = b.x < 0 ? -b.x : b.x;
-    if (b.x + b.w > e) e = b.x + b.w;
-    if (b.y + b.h > e) e = b.y + b.h;
-    if (-b.z > e) e = -b.z;
-    if (b.z + b.d > e) e = b.z + b.d;
-    if (e > reach) reach = e;
-  }
-  sort_boxes(dst, tmpn);
-  models[id] = (Mdl){(uint16_t)boxpool_n, (uint8_t)tmpn, (uint8_t)reach};
-  boxpool_n += tmpn;
-}
-
-static const uint8_t car_mats[5][2] = {
-  {M_BLUE, M_BLUE2}, {M_GREEN, M_GREEN2}, {M_YELLOW, M_YELLOW2}, {M_ORANGE, M_ORANGE2}, {M_PURPLE, M_PURPLE2},
-};
-
 static void build_models(void) {
-  for (int r = 0; r < 4; r++) {
-    tmpn = 0;
-    for (int i = 0; i < NCHICK; i++) tmpb[tmpn++] = chicken_boxes[i];
-    commit(MD_CHICKEN + r, r);
-  }
-  // cars, facing east
-  for (int c = 0; c < 5; c++) {
-    tmpn = 0;
-    for (int i = 0; i < 2; i++) {
-      int wx = i ? 9 : -21;
-      tb(wx, 0, -18, 12, 10, 4, M_BLACK);
-      tb(wx, 0, 14, 12, 10, 4, M_BLACK);
-      tb(wx + 4, 3, -19, 4, 4, 1, M_HUB);
+  Box *dst = boxpool;
+  for (int id = 0; id < NMODELS; id++) {
+    const uint8_t *def = model_def[id];
+    int s = def[0] & 15, r = def[0] >> 4, n = 0, reach = 0;
+    for (int i = shape_at[s]; i < shape_at[s + 1]; i++) {
+      Box b = shapes[i];
+      if (b.m >= M_V0 && (b.m = def[1 + b.m - M_V0]) == NONE) continue;
+      int x0 = b.x, x1 = b.x + b.w, z0 = b.z, z1 = b.z + b.d;
+      if (r == 1) { b.x = z0; b.w = z1 - z0; b.z = -x1; b.d = x1 - x0; }
+      else if (r == 2) { b.x = -x1; b.z = -z1; }
+      else if (r == 3) { b.x = -z1; b.w = z1 - z0; b.z = x0; b.d = x1 - x0; }
+      else if (r == 4) b.x = -x1;  // mirror east-west
+      dst[n++] = b;
+      int e = b.x < 0 ? -b.x : b.x;
+      if (b.x + b.w > e) e = b.x + b.w;
+      if (b.y + b.h > e) e = b.y + b.h;
+      if (-b.z > e) e = -b.z;
+      if (b.z + b.d > e) e = b.z + b.d;
+      if (e > reach) reach = e;
     }
-    tb(-25, 3, -15, 50, 5, 30, M_UNDER);
-    tb(-27, 8, -17, 54, 7, 34, car_mats[c][1]);
-    tb(-27, 15, -17, 54, 7, 34, car_mats[c][0]);
-    tb(-14, 22, -14, 26, 2, 28, M_CABIN);
-    tb(-14, 24, -14, 12, 7, 28, M_BLACK);
-    tb(-2, 24, -14, 3, 7, 28, M_CABIN);
-    tb(1, 24, -14, 11, 7, 28, M_BLACK);
-    tb(-14, 31, -14, 26, 5, 28, M_CABIN);
-    if (c == 2) tb(-5, 36, -4, 8, 4, 8, M_YELLOW);  // taxi sign
-    commit(MD_CAR + c * 2, 0);
-    commit(MD_CAR + c * 2 + 1, 4);
+    sort_boxes(dst, n);
+    models[id] = (Mdl){(uint16_t)(dst - boxpool), (uint8_t)n, (uint8_t)reach};
+    dst += n;
   }
-  // trucks, facing east
-  static const uint8_t cab[3] = {M_RED, M_TBLUE, M_TGREEN};
-  for (int c = 0; c < 3; c++) {
-    tmpn = 0;
-    for (int i = 0; i < 3; i++) {
-      int wx = i == 0 ? -46 : i == 1 ? -30 : 30;
-      tb(wx, 0, -19, 13, 11, 4, M_BLACK);
-      tb(wx, 0, 15, 13, 11, 4, M_BLACK);
-      tb(wx + 4, 4, -20, 5, 4, 1, M_HUB);
-    }
-    tb(-54, 4, -16, 108, 6, 32, M_UNDER);
-    tb(-56, 10, -18, 80, 30, 36, M_BOX2);
-    tb(-56, 40, -18, 80, 12, 36, M_BOX);
-    tb(26, 10, -18, 30, 14, 36, cab[c]);
-    tb(28, 24, -16, 24, 9, 32, M_BLACK);
-    tb(28, 33, -16, 24, 5, 32, cab[c]);
-    commit(MD_TRUCK + c * 2, 0);
-    commit(MD_TRUCK + c * 2 + 1, 4);
-  }
-  // train: engine (facing east) and wagons, 4 tiles each
-  tmpn = 0;
-  tb(-66, 0, -15, 26, 8, 30, M_BLACK);
-  tb(40, 0, -15, 26, 8, 30, M_BLACK);
-  tb(-80, 8, -18, 154, 14, 36, M_TRAIN2);
-  tb(-80, 22, -18, 154, 12, 36, M_TRAIN_W);
-  tb(-80, 34, -18, 154, 16, 36, M_TRAIN);
-  tb(74, 8, -18, 6, 42, 36, M_TRAIN_Y);
-  tb(60, 24, -19, 12, 8, 1, M_BLACK);
-  commit(MD_ENGINE, 0);
-  commit(MD_ENGINE + 1, 4);
-  tmpn = 0;
-  tb(-66, 0, -15, 26, 8, 30, M_BLACK);
-  tb(40, 0, -15, 26, 8, 30, M_BLACK);
-  tb(-79, 8, -18, 158, 14, 36, M_TRAIN2);
-  tb(-79, 22, -18, 158, 12, 36, M_TRAIN_W);
-  tb(-79, 34, -18, 158, 16, 36, M_TRAIN);
-  commit(MD_WAGON, 0);
-  // logs of 2..4 tiles, sitting on the water
-  for (int n = 2; n <= 4; n++) {
-    int half = 20 * n - 2;
-    tmpn = 0;
-    tb(-half, 0, -13, 2 * half, 9, 26, M_LOG);
-    for (int i = 0; i < n; i++) {
-      int cx = -20 * n + 40 * i;
-      tb(cx + 6, 9, -9, 10, 1, 5, M_LOG_BARK);
-      tb(cx + 22, 9, 3, 12, 1, 6, M_LOG_BARK);
-    }
-    commit(MD_LOG + n - 2, 0);
-  }
-  tmpn = 0;
-  tb(-11, 0, -11, 22, 2, 22, M_LILY);
-  tb(-14, 0, -6, 3, 2, 12, M_LILY);
-  tb(11, 0, -7, 3, 2, 10, M_LILY);
-  commit(MD_LILY, 0);
-  tmpn = 0;
-  tb(-15, 0, -13, 30, 14, 26, M_ROCK);
-  tb(-15, 14, -5, 22, 8, 18, M_ROCK);
-  commit(MD_ROCK, 0);
-  // railroad signal: striped pole, black head with two lamps
-  static const uint8_t seg[6][2] = {{0, 4}, {4, 10}, {14, 4}, {18, 10}, {28, 4}, {32, 12}};
-  for (int v = 0; v < 3; v++) {
-    tmpn = 0;
-    for (int i = 0; i < 6; i++) tb(-2, seg[i][0], -2, 5, seg[i][1], 5, (i & 1) ? M_POLE_R : M_POLE_W);
-    tb(-13, 44, -3, 26, 6, 6, M_SIGNAL);
-    tb(-13, 36, -3, 8, 8, 6, M_SIGNAL);
-    tb(5, 36, -3, 8, 8, 6, M_SIGNAL);
-    tb(-12, 37, -4, 6, 6, 1, v == 1 ? M_LAMP_ON : M_LAMP_OFF);
-    tb(6, 37, -4, 6, 6, 1, v == 2 ? M_LAMP_ON : M_LAMP_OFF);
-    commit(MD_SIGNAL + v, 0);
-  }
-  // eagle, flying south toward the camera, wings spread
-  tmpn = 0;
-  tb(-30, 10, -6, 22, 3, 14, M_EAGLE);
-  tb(8, 10, -6, 22, 3, 14, M_EAGLE);
-  tb(-8, 4, -12, 16, 12, 22, M_EAGLE);
-  tb(-6, 7, 10, 12, 4, 9, M_EAGLE_H);
-  tb(-6, 10, -21, 12, 10, 9, M_EAGLE_H);
-  tb(-2, 12, -25, 4, 4, 4, M_EAGLE_B);
-  tb(-6, 0, -8, 3, 4, 3, M_EAGLE_B);
-  tb(3, 0, -8, 3, 4, 3, M_EAGLE_B);
-  commit(MD_EAGLE, 0);
 }
 
 // Draw a model at a world position with per-axis scale; shapes are snapped to
@@ -615,7 +776,6 @@ static void draw_tree(float x, float g, float z, int layers) {
 // ---------------------------------------------------------------------------
 // Random numbers
 
-static uint32_t rng_s;
 static uint32_t rnd(void) {
   rng_s ^= rng_s << 13;
   rng_s ^= rng_s >> 17;
@@ -624,22 +784,13 @@ static uint32_t rnd(void) {
 }
 static int irand(int n) { return (int)((rnd() >> 8) % (uint32_t)n); }
 static float frand(float a, float b) { return a + (b - a) * (float)(rnd() >> 8) * (1.0f / 16777216.0f); }
-static float fabs_(float v) { return v < 0 ? -v : v; }
-static int iround(float v) { return (int)(v + 16384.5f) - 16384; }
-static float clampf(float v, float a, float b) { return v < a ? a : v > b ? b : v; }
+static float fabs_(float v) { return __builtin_fabsf(v); }
+static NOINLINE int iround(float v) { return (int)(v + 16384.5f) - 16384; }
+static NOINLINE float clampf(float v, float a, float b) { return v < a ? a : v > b ? b : v; }
 
 // ---------------------------------------------------------------------------
 // World
 
-#define PLAY_MIN (-4)
-#define PLAY_MAX 4
-#define NCOLS 27  // columns -13..13 (the rest of each lane is shaded scenery)
-#define COL0 13
-#define NLANES 40
-#define MAXOBJ 8
-#define NO_COIN (-128)
-
-enum { L_GRASS, L_ROAD, L_RIVER, L_LILY, L_RAIL };
 enum { O_NONE, O_SHORT, O_MEDIUM, O_TALL, O_ROCK, O_PAD };
 
 #define H_GRASS (15 / 40.0f)
@@ -659,23 +810,7 @@ enum { O_NONE, O_SHORT, O_MEDIUM, O_TALL, O_ROCK, O_PAD };
 #define CHICK_HALF 0.14f
 #define IDLE_EAGLE 6.0f
 
-typedef struct {
-  float x;       // center
-  uint8_t kind;  // vehicle type (road) or length in tiles (river)
-  int8_t coin;   // slot holding a coin (logs), -1 if none
-} Obj;
-
-typedef struct {
-  int row;
-  uint8_t type, nobj, alt, train;
-  int8_t dir, coin, bob;
-  float speed, period, timer, trainx, bobt;
-  uint8_t cells[NCOLS];
-  Obj obj[MAXOBJ];
-} Lane;
-
-static Lane lanes[NLANES];
-static inline Lane *lane_at(int row) { return &lanes[(unsigned)(row + NLANES * 1024) % NLANES]; }
+static NOINLINE Lane *lane_at(int row) { return &lanes[(unsigned)(row + NLANES * 1024) % NLANES]; }
 
 static float lane_h(int type) { return type == L_GRASS ? H_GRASS : type == L_ROAD || type == L_RAIL ? H_ROAD : H_WATER; }
 
@@ -688,11 +823,8 @@ static float obj_half(const Lane *L, const Obj *o) {
 // ---------------------------------------------------------------------------
 // Generation: sets of lanes like the original (grass, roads, rivers, rails).
 
-static int gen_next, set_left, set_type, prev_dir, start_end;
-static uint16_t reach_prev;  // bits 0..8: playable columns reachable in the previous lane
 #define ALLPLAY 0x1FF
 
-static const uint8_t obstacle_pct[12] = {10, 10, 20, 20, 25, 25, 30, 30, 35, 40, 45, 50};
 
 static int pick_tree(int edge) {
   int r = irand(100);
@@ -720,7 +852,6 @@ static int random_bit(uint16_t mask) {
 
 static void new_set(int row) {
   int t, gp = row < 50 ? 90 : row < 100 ? 75 : row < 150 ? 50 : row < 200 ? 25 : 0;
-  static const uint8_t kinds[4] = {L_GRASS, L_ROAD, L_RIVER, L_RAIL};
   if (set_type == L_GRASS) t = kinds[1 + irand(3)];
   else if (irand(100) < gp) t = L_GRASS;
   else do t = kinds[irand(4)]; while (t == set_type);
@@ -860,39 +991,11 @@ static void gen_lane(void) {
 }
 
 // ---------------------------------------------------------------------------
-// Game state
+// Gameplay
 
 enum { ST_TITLE, ST_PLAY, ST_DEAD, ST_OVER };
 enum { D_NONE, D_PANCAKE, D_SPLAT, D_TRAIN, D_DROWN, D_LOG, D_EAGLE };
 
-static int state, paused, show_logo, new_top;
-static float st_time, game_time, fade;
-static int score, top_score, coins;
-static float cam_x, cam_z, shake;
-
-static struct {
-  float x, y, z, base;      // position; base = standing height of the surface
-  float sx, sy, sz;         // squash / death scale
-  int face, row, best;
-  int hop, bump;
-  float t, fx, fz, fbase, tx, tz;
-  int q[3], nq;
-  int log;                  // index of the log ridden in the current row, or -1
-  float logoff;
-  int dead, visible;
-  float dt, idle;
-  int crow, cobj;           // vehicle carrying the splatted chicken
-  float cdx;
-} P;
-
-static int eagle_on;
-static float eagle_x, eagle_y, eagle_z;
-
-typedef struct { float x, y, z, vx, vy, vz, life; uint8_t c, sz; } Part;
-#define NPARTS 40
-static Part parts[NPARTS];
-
-static const int8_t DX[4] = {0, 1, 0, -1}, DZ[4] = {1, 0, -1, 0};
 
 static void spawn_parts(float x, float y, float z, int n, int c1, int c2, float spd, float up) {
   for (int i = 0; i < NPARTS && n > 0; i++) {
@@ -1042,7 +1145,7 @@ static void land(void) {
 
 static float train_len(void) { return WAGON * TRAIN_CARS; }
 
-static void update_lanes(float dt) {
+static NOINLINE void update_lanes(float dt) {
   int r0 = (int)cam_z - 8, r1 = (int)cam_z + 14;
   for (int r = r0; r <= r1; r++) {
     Lane *L = lane_at(r);
@@ -1251,8 +1354,7 @@ static void new_game(void) {
 // ---------------------------------------------------------------------------
 // Drawing the world
 
-// Lanes are drawn only over the part that is on screen.
-static float lxa, lxb;
+// Lanes are drawn only over the part that is on screen ([lxa, lxb]).
 
 static void lane_split(float z0, float z1, float y, int cin, int cout) {
   float m0 = PLAY_MIN - 0.5f, m1 = PLAY_MAX + 0.5f;
@@ -1329,16 +1431,11 @@ static void draw_coin(float x, float g, float z) {
   if (ac > 0.5f) south_quad(x - w * 0.35f, x + w * 0.35f, y + 0.14f, y + 0.3f, z - d - 0.001f, C_COIN_C);
 }
 
-typedef struct { float key; uint8_t kind, a; } Item;
-enum { I_TREE, I_ROCK, I_PAD, I_VEH, I_LOG, I_TRAIN, I_SIGNAL, I_COIN, I_PLAYER };
+// Things standing on a lane, drawn west to east. md: the model, if any.
+typedef struct { float key; uint8_t kind, a, md; } Item;
+enum { I_MODEL, I_TREE, I_PAD, I_LOG, I_SIGNAL, I_COIN, I_PLAYER };
 
-static int chicken_model(void) { return MD_CHICKEN + P.face; }
-
-static void draw_player(float g) {
-  float y = P.base + P.y;
-  (void)g;
-  draw_model_s(chicken_model(), P.x, y, P.z, P.sx, P.sy, P.sz);
-}
+static void draw_player(void) { draw_model_s(MD_CHICKEN + P.face, P.x, P.base + P.y, P.z, P.sx, P.sy, P.sz); }
 
 static void draw_lane_objects(int row) {
   Lane *L = lane_at(row);
@@ -1348,23 +1445,31 @@ static void draw_lane_objects(int row) {
   if (L->type == L_GRASS || L->type == L_LILY)
     for (int c = 0; c < NCOLS; c++) {
       int o = L->cells[c];
-      if (o) it[n++] = (Item){(float)(c - COL0), (uint8_t)(o == O_ROCK ? I_ROCK : o == O_PAD ? I_PAD : I_TREE), (uint8_t)c};
+      if (o) it[n++] = (Item){(float)(c - COL0), (uint8_t)(o == O_ROCK ? I_MODEL : o == O_PAD ? I_PAD : I_TREE), (uint8_t)c,
+                              (uint8_t)(o == O_ROCK ? MD_ROCK : MD_LILY)};
     }
-  for (int i = 0; i < L->nobj; i++)
-    it[n++] = (Item){L->obj[i].x, (uint8_t)(L->type == L_ROAD ? I_VEH : I_LOG), (uint8_t)i};
-  if (L->type == L_RAIL) {
-    it[n++] = (Item){-0.4f, I_SIGNAL, 0};
-    if (L->train)
-      for (int i = 0; i < TRAIN_CARS; i++) it[n++] = (Item){L->trainx - L->dir * (WAGON * 0.5f + WAGON * i), I_TRAIN, (uint8_t)i};
+  for (int i = 0; i < L->nobj; i++) {
+    int k = L->obj[i].kind;
+    if (L->type == L_ROAD)
+      it[n++] = (Item){L->obj[i].x, I_MODEL, 0, (uint8_t)((is_truck(k) ? MD_TRUCK + (k - 5) * 2 : MD_CAR + k * 2) + (L->dir < 0))};
+    else
+      it[n++] = (Item){L->obj[i].x, I_LOG, (uint8_t)i, (uint8_t)(MD_LOG + k - 2)};
   }
-  if (L->coin != NO_COIN) it[n++] = (Item){(float)L->coin, I_COIN, 0};
+  if (L->type == L_RAIL) {
+    it[n++] = (Item){-0.4f, I_SIGNAL, 0, MD_SIGNAL};
+    if (L->train)
+      for (int i = 0; i < TRAIN_CARS; i++)
+        it[n++] = (Item){L->trainx - L->dir * (WAGON * 0.5f + WAGON * i), I_MODEL, 0,
+                         (uint8_t)(i == 0 ? MD_ENGINE + (L->dir < 0) : i == TRAIN_CARS - 1 ? MD_ENGINE + (L->dir > 0) : MD_WAGON)};
+  }
+  if (L->coin != NO_COIN) it[n++] = (Item){(float)L->coin, I_COIN};
   int prow = iround(P.z), flat = P.dead == D_PANCAKE;
   if (P.visible && prow == row && !flat) {
     float k = P.x + 0.001f;
     if (P.log >= 0 && P.row == row && L->obj[P.log].x + 0.002f > k) k = L->obj[P.log].x + 0.002f;
     if (P.dead == D_SPLAT) k = L->obj[P.cobj].x + (P.z < row ? 0.002f : -0.002f) + (P.sx < 0.5f ? P.cdx : 0);
     if (P.dead == D_TRAIN) k = P.x;
-    it[n++] = (Item){k, I_PLAYER, 0};
+    it[n++] = (Item){k, I_PLAYER};
   }
   for (int i = 1; i < n; i++) {
     Item t = it[i];
@@ -1372,78 +1477,47 @@ static void draw_lane_objects(int row) {
     while (j >= 0 && it[j].key > t.key) { it[j + 1] = it[j]; j--; }
     it[j + 1] = t;
   }
-  if (P.visible && prow == row && flat) draw_player(g);  // the pancake lies under the traffic
+  if (P.visible && prow == row && flat) draw_player();  // the pancake lies under the traffic
   // shadows on this lane's ground
   for (int i = 0; i < n; i++) {
     Item *d = &it[i];
     float x = d->key;
-    switch (d->kind) {
-      case I_TREE: {
-        int layers = L->cells[d->a];
-        float top = g + (15 + 15 * layers) / 40.0f;
-        shadow_box(x - 0.32f, x + 0.32f, row - 0.31f, row + 0.31f, g + 0.25f, top, g);
-        shadow_box(x - 0.15f, x + 0.15f, row - 0.15f, row + 0.15f, g, g + 0.25f, g);
-        break;
-      }
-      case I_ROCK: shadow_model(MD_ROCK, x, g, row, g); break;
-      case I_PAD: shadow_model(MD_LILY, x, g, row, g); break;
-      case I_VEH: {
-        Obj *o = &L->obj[d->a];
-        int id = is_truck(o->kind) ? MD_TRUCK + (o->kind - 5) * 2 : MD_CAR + o->kind * 2;
-        shadow_model(id + (L->dir < 0), x, g, row, g);
-        break;
-      }
-      case I_LOG: shadow_model(MD_LOG + L->obj[d->a].kind - 2, x, g, row, g); break;
-      case I_TRAIN: {
-        int id = d->a == 0 ? MD_ENGINE + (L->dir < 0) : d->a == TRAIN_CARS - 1 ? MD_ENGINE + (L->dir > 0) : MD_WAGON;
-        shadow_model(id, x, g, row, g);
-        break;
-      }
-      case I_SIGNAL: shadow_model(MD_SIGNAL, x, g, row - 0.43f, g); break;
-      case I_COIN: shadow_box(x - 0.14f, x + 0.14f, row - 0.05f, row + 0.05f, g + 0.1f, g + 0.54f, g); break;
-      case I_PLAYER:
-        shadow_model_s(chicken_model(), P.x, P.base + P.y, P.z, g, P.sx, P.sy, P.sz);
-        break;
+    if (d->kind == I_TREE) {
+      float top = g + (15 + 15 * L->cells[d->a]) / 40.0f;
+      shadow_box(x - 0.32f, x + 0.32f, row - 0.31f, row + 0.31f, g + 0.25f, top, g);
+      shadow_box(x - 0.15f, x + 0.15f, row - 0.15f, row + 0.15f, g, g + 0.25f, g);
+    } else if (d->kind == I_COIN) {
+      shadow_box(x - 0.14f, x + 0.14f, row - 0.05f, row + 0.05f, g + 0.1f, g + 0.54f, g);
+    } else if (d->kind == I_PLAYER) {
+      shadow_model_s(MD_CHICKEN + P.face, P.x, P.base + P.y, P.z, g, P.sx, P.sy, P.sz);
+    } else {
+      shadow_model(d->md, x, g, row - (d->kind == I_SIGNAL ? 0.43f : 0), g);
     }
   }
   for (int i = 0; i < n; i++) {
     Item *d = &it[i];
-    float x = d->key;
+    float x = d->key, b = 0, z = row;
+    int md = d->md;
     switch (d->kind) {
-      case I_TREE: draw_tree(x, g, row, L->cells[d->a]); break;
-      case I_ROCK: draw_model(MD_ROCK, x, g, row); break;
-      case I_PAD: draw_model(MD_LILY, x, g + bob_of(L, d->a - COL0) * 0.5f, row); break;
-      case I_VEH: {
-        Obj *o = &L->obj[d->a];
-        int id = is_truck(o->kind) ? MD_TRUCK + (o->kind - 5) * 2 : MD_CAR + o->kind * 2;
-        draw_model(id + (L->dir < 0), x, g, row);
-        break;
-      }
-      case I_LOG: {
-        Obj *o = &L->obj[d->a];
-        float b = bob_of(L, d->a);
-        draw_model(MD_LOG + o->kind - 2, x, g + b, row);
-        if (o->coin >= 0) draw_coin(x - o->kind * 0.5f + 0.5f + o->coin, g + H_LOG + b, row);
-        break;
-      }
-      case I_TRAIN: {
-        int id = d->a == 0 ? MD_ENGINE + (L->dir < 0) : d->a == TRAIN_CARS - 1 ? MD_ENGINE + (L->dir > 0) : MD_WAGON;
-        draw_model(id, x, g, row);
-        break;
-      }
-      case I_SIGNAL: {
-        int v = rail_warning(L) ? 1 + ((int)(game_time / 0.3f) & 1) : 0;
-        draw_model(MD_SIGNAL + v, x, g, row - 0.43f);
-        break;
-      }
-      case I_COIN: draw_coin(x, g + (L->type == L_LILY ? H_PAD : 0), row); break;
-      case I_PLAYER: {
-        float b = P.log >= 0 && P.row == row ? bob_of(L, P.log) : L->type == L_LILY && !P.hop ? bob_of(L, iround(P.x)) * 0.5f : 0;
+      case I_TREE: draw_tree(x, g, row, L->cells[d->a]); continue;
+      case I_COIN: draw_coin(x, g + (L->type == L_LILY ? H_PAD : 0), row); continue;
+      case I_PLAYER:
+        b = P.log >= 0 && P.row == row ? bob_of(L, P.log) : L->type == L_LILY && !P.hop ? bob_of(L, iround(P.x)) * 0.5f : 0;
         P.base += b;
-        draw_player(g);
+        draw_player();
         P.base -= b;
+        continue;
+      case I_PAD: b = bob_of(L, d->a - COL0) * 0.5f; break;
+      case I_LOG: b = bob_of(L, d->a); break;
+      case I_SIGNAL:
+        z -= 0.43f;
+        if (rail_warning(L)) md += 1 + ((int)(game_time / 0.3f) & 1);
         break;
-      }
+    }
+    draw_model(md, x, g + b, z);
+    if (d->kind == I_LOG) {
+      Obj *o = &L->obj[d->a];
+      if (o->coin >= 0) draw_coin(x - o->kind * 0.5f + 0.5f + o->coin, g + H_LOG + b, row);
     }
   }
 }
@@ -1482,38 +1556,9 @@ static void draw_world(void) {
 }
 
 // ---------------------------------------------------------------------------
-// Font: the original's blocky digits (decoded from the game) and matching
-// capitals. 10 rows; bit 11 is the leftmost column.
+// Text, in the original's blocky font (glyphs are in the constant data).
 
-#define G(a, b, c, d, e, f, g, h, i, j) {a << 2, b << 2, c << 2, d << 2, e << 2, f << 2, g << 2, h << 2, i << 2, j << 2}
-static const char font_chars[] = "0123456789ACDENOPRSTWY";
-static const uint8_t font_w[] = {10, 5, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 12, 10};
-static const uint16_t font[][10] = {
-  G(0x1FE, 0x3FF, 0x3CF, 0x3CF, 0x3CF, 0x3CF, 0x3CF, 0x3CF, 0x3FF, 0x1FE),  // 0
-  G(0x3C0, 0x3E0, 0x1E0, 0x1E0, 0x1E0, 0x1E0, 0x1E0, 0x1E0, 0x1E0, 0x1E0),  // 1
-  G(0x3FE, 0x3FF, 0x00F, 0x00F, 0x1FF, 0x3FE, 0x3C0, 0x3C0, 0x3FF, 0x3FF),  // 2
-  G(0x3FE, 0x3FF, 0x00F, 0x00F, 0x07E, 0x07E, 0x00F, 0x00F, 0x3FF, 0x3FE),  // 3
-  G(0x3CF, 0x3CF, 0x3CF, 0x3CF, 0x3FF, 0x1FF, 0x00F, 0x00F, 0x00F, 0x00F),  // 4
-  G(0x3FF, 0x3FF, 0x3C0, 0x3C0, 0x3FE, 0x1FF, 0x00F, 0x00F, 0x3FF, 0x3FE),  // 5
-  G(0x1FF, 0x3FF, 0x3C0, 0x3C0, 0x3FE, 0x3FF, 0x3CF, 0x3CF, 0x3FF, 0x1FE),  // 6
-  G(0x3FE, 0x3FF, 0x00F, 0x00F, 0x00F, 0x00F, 0x00F, 0x00F, 0x00F, 0x00F),  // 7
-  G(0x1FE, 0x3FF, 0x3CF, 0x3CF, 0x1FE, 0x1FE, 0x3CF, 0x3CF, 0x3FF, 0x1FE),  // 8
-  G(0x1FE, 0x3FF, 0x3CF, 0x3CF, 0x3FF, 0x1FF, 0x00F, 0x00F, 0x3FF, 0x3FE),  // 9
-  G(0x1FE, 0x3FF, 0x3CF, 0x3CF, 0x3FF, 0x3FF, 0x3CF, 0x3CF, 0x3CF, 0x3CF),  // A
-  G(0x1FF, 0x3FF, 0x3C0, 0x3C0, 0x3C0, 0x3C0, 0x3C0, 0x3C0, 0x3FF, 0x1FF),  // C
-  G(0x3FE, 0x3FF, 0x3CF, 0x3CF, 0x3CF, 0x3CF, 0x3CF, 0x3CF, 0x3FF, 0x3FE),  // D
-  G(0x1FF, 0x3FF, 0x3C0, 0x3C0, 0x3F8, 0x3F8, 0x3C0, 0x3C0, 0x3FF, 0x1FF),  // E
-  G(0x3CF, 0x3EF, 0x3FF, 0x3FF, 0x3DF, 0x3CF, 0x3CF, 0x3CF, 0x3CF, 0x3CF),  // N
-  G(0x1FE, 0x3FF, 0x3CF, 0x3CF, 0x3CF, 0x3CF, 0x3CF, 0x3CF, 0x3FF, 0x1FE),  // O
-  G(0x3FE, 0x3FF, 0x3CF, 0x3CF, 0x3FF, 0x3FE, 0x3C0, 0x3C0, 0x3C0, 0x3C0),  // P
-  G(0x3FE, 0x3FF, 0x3CF, 0x3CF, 0x3FE, 0x3FF, 0x3CF, 0x3CF, 0x3CF, 0x3CF),  // R
-  G(0x1FF, 0x3FF, 0x3C0, 0x3C0, 0x3FE, 0x1FF, 0x00F, 0x00F, 0x3FF, 0x3FE),  // S
-  G(0x3FF, 0x3FF, 0x078, 0x078, 0x078, 0x078, 0x078, 0x078, 0x078, 0x078),  // T
-  {0xF0F, 0xF0F, 0xF0F, 0xF6F, 0xF6F, 0xFFF, 0xFFF, 0xF9F, 0xF0F, 0xF0F},  // W
-  G(0x3CF, 0x3CF, 0x3CF, 0x3CF, 0x3FF, 0x1FE, 0x078, 0x078, 0x078, 0x078),  // Y
-};
-
-static int glyph_index(char ch) {
+static NOINLINE int glyph_index(char ch) {
   for (int i = 0; font_chars[i]; i++)
     if (font_chars[i] == ch) return i;
   return -1;
@@ -1607,7 +1652,7 @@ static void draw_coins_hud(void) {
 static void draw_logo(float t) {
   int dx = (int)(t * 220), dy = (int)(t * 60);
   const int sc = 3, sh = 59;
-  const char *l1 = "CROSSY", *l2 = "ROAD";
+  const char *l1 = str_crossy, *l2 = str_road;
   int w1 = text_width(l1, sc), w2 = text_width(l2, sc);
   int x1 = 160 - w1 / 2 - 8 + dx, y1 = 8 + dy;
   int x2 = x1 + (w1 - w2) / 2 + 3, y2 = y1 + 33 + (((x2 - x1) * sh) >> 8);
@@ -1617,11 +1662,7 @@ static void draw_logo(float t) {
   draw_text(x2, y2, l2, sc, C_WHITE, sh);
 }
 
-// Pixel-art pointing hand (tap hint), 12x14: outline and fill masks.
-static const uint16_t hand_ol[14] = {0x0E0, 0x1B0, 0x1B0, 0x1BE, 0x1B5, 0x7B5, 0x9D5, 0x8C1,
-                                     0x801, 0x401, 0x402, 0x202, 0x1FC, 0x1FC};
-static const uint16_t hand_in[14] = {0x000, 0x040, 0x040, 0x040, 0x04A, 0x04A, 0x62A, 0x73E,
-                                     0x7FE, 0x3FE, 0x3FC, 0x1FC, 0x000, 0x000};
+// Pointing hand (tap hint), from its 12x14 outline and fill masks.
 static void draw_hand(int x, int y) {
   for (int r = 0; r < 14; r++)
     for (int c = 0; c < 12; c++) {
@@ -1676,7 +1717,7 @@ static void render(void) {
     if (state == ST_OVER) {
       float t = clampf(st_time * 4, 0, 1);
       int x = -90 + (int)(t * 96);
-      if (new_top) text_ol(x, 42, "NEW TOP", 1, C_WHITE);
+      if (new_top) text_ol(x, 42, str_new_top, 1, C_WHITE);
       else {
         char tb[20] = "TOP ";
         itoa_(top_score, tb + 4);
@@ -1698,9 +1739,6 @@ static void render(void) {
 // "crossyroad.sav", written only after the whole file system checks out.
 #if (PLATFORM_DEVICE && !defined(HOST)) || defined(SAVE_TEST)
 #define FS_MAGIC 0xEE0BDDBAu
-static uint8_t *fs_buf;
-static uint32_t fs_size;
-static const char save_name[] = "crossyroad.sav";
 #define SAVE_LEN 12
 
 static uint16_t rd16(const uint8_t *p) { return (uint16_t)(p[0] | p[1] << 8); }
@@ -1732,8 +1770,8 @@ static void fs_locate(void) {
 }
 #else
 static void fs_locate(void) {
-  static const uint32_t slots[2] = {0x90010000u, 0x90410000u};
-  uint32_t me = (uint32_t)(uintptr_t)&fs_locate;
+  uint32_t me;  // any address inside this app: this code's own
+  __asm__("mov %0, pc" : "=r"(me));
   for (int i = 0; i < 2; i++) {
     const volatile uint32_t *h = (const volatile uint32_t *)slots[i];
     if (h[0] != 0xDEC0EDFEu || me < h[5] || me >= h[6]) continue;
@@ -1764,7 +1802,7 @@ static void load_save(void) {
   coins = (int)v[1];
 }
 
-static void write_save(void) {
+static NOINLINE void write_save(void) {
   uint8_t *f, *end;
   if (!fs_buf || !(end = fs_walk(&f))) return;
   uint32_t n = 2 + sizeof(save_name) + SAVE_LEN;
@@ -1788,10 +1826,7 @@ static void write_save(void) {}
 // ---------------------------------------------------------------------------
 // Display
 
-#define STRIP 12
 static void present(void) {
-  static uint16_t strip[SW * STRIP] __attribute__((aligned(4)));
-  static uint16_t fpal[NCOLORS];
   const uint16_t *p = pal;
   if (fade > 0) {  // fade to white
     int f = (int)(fade * 32);
@@ -1821,9 +1856,6 @@ static void present(void) {
 
 // ---------------------------------------------------------------------------
 // Main loop
-
-static int restarting;
-static float restart_t;
 
 static void update(float dt) {
   game_time += dt;
@@ -1861,11 +1893,42 @@ static void update(float dt) {
 #endif
 }
 
+#ifdef ROM_PACKED
+// Decoder for the packed tables (tools/pack_rom.py): per item a flag bit, then
+// a literal byte or an 8-bit distance and a 4-bit length.
+static void unpack(uint8_t *d, const uint8_t *s) {
+  uint32_t buf = 0;
+  int nb = 0;
+  for (uint8_t *end = d + sizeof(struct Rom); d < end;) {
+    while (nb < 16) {
+      buf = buf << 8 | *s++;
+      nb += 8;
+    }
+    if (buf >> --nb & 1) {
+      unsigned v = buf >> (nb -= 12);
+      const uint8_t *m = d - (v >> 4 & 255) - 1;
+      for (int k = (v & 15) + 2; k--;) *d++ = *m++;
+    } else {
+      *d++ = (uint8_t)(buf >> (nb -= 8));
+    }
+  }
+}
+#endif
+
 int main(int argc, char *argv[]) {
   (void)argc;
   (void)argv;
+#if PLATFORM_DEVICE && !defined(HOST)
+  struct State *caller_r9 = g9;  // r9 belongs to the caller: given back on exit
+  g9 = &state_mem;
+  __asm__("" : "+r"(g9));  // keep using r9, not the address it was given
+#endif
+#ifdef ROM_PACKED
+  unpack((uint8_t *)&G.rom, rom_packed);
+#else
+  memcpy(&G.rom, &rom_init, sizeof(rom_init));
+#endif
   init_palette();
-  memcpy(pal, base_pal, sizeof(base_pal));
   build_models();
   load_save();
   new_game();
@@ -1884,7 +1947,7 @@ int main(int argc, char *argv[]) {
     if (PRESSED(eadk_key_back)) {
       if (state == ST_PLAY && !paused) paused = 1;
       else if (paused) paused = 0;
-      else return 0;
+      else break;
     }
     if (paused) {
       if (dir >= 0) paused = 0;
@@ -1934,5 +1997,8 @@ int main(int argc, char *argv[]) {
 #endif
     present();
   }
+#if PLATFORM_DEVICE && !defined(HOST)
+  g9 = caller_r9;
+#endif
   return 0;
 }

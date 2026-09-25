@@ -2,7 +2,7 @@
 """Runs the real calculator build (ARM Cortex-M7 code, linked by nwlink) in the
 Unicorn CPU emulator. EADK calls are serviced here, with the same scripted input,
 clock and random numbers as host/host.c, so frames can be compared pixel by pixel.
-Also reports executed instructions per frame (a rough CPU cost estimate).
+Also reports executed instructions per frame (a CPU cost estimate).
 
 Usage: arm_emu.py app.elf --frames N --shots 10,20 --keys "30:U,50:L" --out DIR
 """
@@ -108,8 +108,17 @@ def main():
         addr = syms[name] & ~1
         uc.hook_add(UC_HOOK_CODE, lambda uc, ad, sz, ud, fn=fn: fn(uc), begin=addr, end=addr)
 
+    ninsn = {}
+
     def block(uc, addr, size, ud):
-        st["insns"] += size / 2.6  # mix of 16- and 32-bit Thumb-2 instructions
+        n = ninsn.get((addr, size))
+        if n is None:  # count Thumb-2 instructions: 32-bit ones start with 0b11101/0b1111x
+            code, i, n = uc.mem_read(addr, size), 0, 0
+            while i < size:
+                i += 4 if (code[i + 1] >> 3) in (0x1D, 0x1E, 0x1F) else 2
+                n += 1
+            ninsn[(addr, size)] = n
+        st["insns"] += n
     uc.hook_add(UC_HOOK_BLOCK, block)
 
     uc.reg_write(UC_ARM_REG_SP, 0x30010000)

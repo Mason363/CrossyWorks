@@ -96,17 +96,17 @@ def main(src, dst):
     n_symtab = len(keep) + 1
     n_strtab = n_symtab + 1
 
+    # one string table for symbol and section names; longer names first so
+    # shorter ones can reuse their tails (".rel.text" holds ".text")
+    names_needed = {syms[i]["name"] for i in need if (syms[i]["info"] & 15) != 3}
+    names_needed |= {secs[i]["sname"] for i in keep} | {b".symtab", b".strtab"}
     strtab_b = bytearray(b"\0")
+    for b in sorted(names_needed - {b""}, key=lambda b: (-len(b), b)):
+        if strtab_b.find(b + b"\0") < 0:
+            strtab_b.extend(b + b"\0")
 
     def addstr(b):
-        if not b:
-            return 0
-        pos = strtab_b.find(b + b"\0")
-        if pos >= 0:
-            return pos
-        pos = len(strtab_b)
-        strtab_b.extend(b + b"\0")
-        return pos
+        return strtab_b.find(b + b"\0") if b else 0
 
     # symbols: null, locals first, then globals
     order = sorted(need, key=lambda i: (syms[i]["info"] >> 4) != 0)
