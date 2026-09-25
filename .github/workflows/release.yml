@@ -1,0 +1,26 @@
+# Builds the app and publishes it as a GitHub release when a v* tag is pushed.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the ARM toolchain
+        run: sudo apt-get update && sudo apt-get install -y gcc-arm-none-eabi
+      - name: Build
+        run: make && sha256sum output/crossyroad.nwa
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "$GITHUB_REF_NAME" output/crossyroad.nwa
+          --title "Crossy Road $GITHUB_REF_NAME"
+          --notes "Crossy Road for the NumWorks calculator. Download crossyroad.nwa below and install it from https://my.numworks.com/apps with your calculator plugged in."
