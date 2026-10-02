@@ -11,3 +11,7 @@ Crossy Road for the NumWorks calculator.
 Its code now lives in [NumPlay](https://github.com/Mason363/NumPlay/tree/main/games/crossyroad).
 
 Crossy Road is a trademark of Hipster Whale. This is an unofficial fan remake.
+
+## License
+
+CrossyWorks is licensed under the [GNU General Public License v3.0](LICENSE). Copyright (c) 2026 Mason Chen.
